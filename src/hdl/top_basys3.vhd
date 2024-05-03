@@ -26,21 +26,230 @@ library ieee;
 
 
 entity top_basys3 is
--- TODO
+    port(
+        --inputs 
+        clk : in STD_LOGIC;
+        btnU : in STD_LOGIC;
+        btnC : in STD_LOGIC;
+        sw : in STD_LOGIC_VECTOR(15 downto 0);
+        
+        -- outputs
+        an : out STD_LOGIC_VECTOR(3 downto 0);
+        led : out STD_LOGIC_VECTOR(15 downto 0);
+        seg : out std_logic_vector(6 downto 0)
+    );
 end top_basys3;
 
 architecture top_basys3_arch of top_basys3 is 
   
 	-- declare components and signals
+	signal w_opnd_A : std_logic_vector(7 downto 0);
+	signal w_opnd_B : std_logic_vector(7 downto 0);
+	signal w_result : std_logic_vector(7 downto 0);
+	signal w_bin : std_logic_vector(7 downto 0);
+	signal w_sign : std_logic;
+	signal w_hundreds : std_logic_vector(3 downto 0);
+	signal w_tens : std_logic_vector(3 downto 0);
+	signal w_ones : std_logic_vector(3 downto 0);
+	signal w_sel : std_logic_vector(3 downto 0);
+	signal w_disp_digit : std_logic_vector(3 downto 0);
+	signal w_clk_tdm : std_logic;
+    signal w_clk_fsm : std_logic;
+    signal w_clk : std_logic;
+	
+	signal f_registerA :   unsigned(7 downto 0) := "00000000";
+	signal f_registerB :   unsigned(7 downto 0) := "00000000";
+    signal f_state :       std_logic_vector(3 downto 0) := "1000";
+    signal f_state_next :  std_logic_vector(3 downto 0) := "1000";
+
+	
+	component clock_divider is
+	   generic ( constant k_DIV : natural := 2	); -- How many clk cycles until slow clock toggles
+                                                   -- Effectively, you divide the clk double this 
+                                                   -- number (e.g., k_DIV := 2 --> clock divider of 4)
+        port (     i_clk    : in std_logic;
+                i_reset  : in std_logic;           -- asynchronous
+                o_clk    : out std_logic           -- divided (slow) clock
+        );
+	end component clock_divider;
+
+    component TDM4 is 
+        generic ( constant k_WIDTH : natural  := 4); -- bits in input and output
+        Port ( i_clk        : in  STD_LOGIC;
+               i_reset        : in  STD_LOGIC; -- asynchronous
+               i_D3         : in  STD_LOGIC_VECTOR (k_WIDTH - 1 downto 0);
+               i_D2         : in  STD_LOGIC_VECTOR (k_WIDTH - 1 downto 0);
+               i_D1         : in  STD_LOGIC_VECTOR (k_WIDTH - 1 downto 0);
+               i_D0         : in  STD_LOGIC_VECTOR (k_WIDTH - 1 downto 0);
+               o_data        : out STD_LOGIC_VECTOR (k_WIDTH - 1 downto 0);
+               o_sel        : out STD_LOGIC_VECTOR (3 downto 0)    -- selected data line (one-cold)
+        );
+    end component TDM4;
+    
+--    component twoscomp_decimal is
+--        port (
+--            i_binary: in std_logic_vector(7 downto 0);
+--            o_negative: out std_logic;
+--            o_hundreds: out std_logic_vector(3 downto 0);
+--            o_tens: out std_logic_vector(3 downto 0);
+--            o_ones: out std_logic_vector(3 downto 0)
+--        );
+--    end component twoscomp_decimal;
+    
+    component ALU is 
+        Port(
+            i_A : in  STD_LOGIC_VECTOR (7 downto 0);
+            i_B : in STD_LOGIC_VECTOR (7 downto 0);
+            i_op : in STD_LOGIC_VECTOR (2 downto 0);
+            o_result : out STD_LOGIC_VECTOR (7 downto 0);
+            o_flags : out STD_LOGIC_VECTOR (2 downto 0)
+        );
+    end component ALU;
+    
+    component sevenSegDecoder is 
+        Port(
+            i_D : in STD_LOGIC_VECTOR (3 downto 0);
+            o_S : out STD_LOGIC_VECTOR (6 downto 0)
+        );
+    end component sevenSegDecoder;
 
   
 begin
 	-- PORT MAPS ----------------------------------------
-
-	
+    stateMachineClock_inst: clock_divider
+    generic map (k_DIV => 50000000)
+    port map(
+        i_clk => clk,
+        i_reset => '0',
+        o_clk => w_clk_fsm
+    );
+    
+    TdmClock_inst: clock_divider
+    generic map (k_DIV => 100000)
+    port map(
+        i_clk => clk,
+        i_reset => '0',
+        o_clk => w_clk_tdm
+    );
+    
+    TDM_inst : TDM4
+    port map(
+        i_clk => w_clk_tdm,
+        i_reset => '0',
+        i_D3 => "0000",
+        i_D2 => "0000",
+        i_D1 => w_bin(7 downto 4),
+        i_D0 => w_bin(3 downto 0),
+        o_data => w_disp_digit,
+        o_sel => w_sel
+    );	
+    
+    ALU_inst : ALU
+    port map(
+        i_A => std_logic_vector(f_registerA),
+        i_B => std_logic_vector(f_registerB),
+        i_op => sw(2 downto 0),
+        
+        o_result => w_result,
+        o_flags => led(15 downto 13)
+    );
+    
+    SSD_inst : sevenSegDecoder 
+    port map(
+        i_D => w_disp_digit,
+        o_S => seg
+    );
+    
+--    twoscomp_inst : twoscomp_decimal
+--    port map (
+--        i_binary => w_bin,
+--        o_negative => w_sign,
+--        o_hundreds => w_hundreds,
+--        o_tens => w_tens,
+--        o_ones => w_ones
+--    );
 	
 	-- CONCURRENT STATEMENTS ----------------------------
-	
+    -- update state registers
+    f_state_next(3) <= f_state(0);
+    f_state_next(2) <= f_state(3);
+    f_state_next(1) <= f_state(2);
+    f_state_next(0) <= f_state(1);
+    
+    -- update the FSM when a button is toggled
+    fsm : process (w_clk_fsm)
+    begin
+        --asynchronous reset
+        if (btnU = '1') then
+            f_state <= "1000";        
+        elsif (rising_edge(w_clk_fsm)) then
+            if (btnC = '1') then
+                f_state <= f_state_next;      -- next state becomes current state
+            else 
+                f_state <= f_state;           -- if the button not pressed, keep the current state
+            end if;
+        end if;
+    end process fsm;
+    
+    -- update registers in state 2 and three
+    load_registers : process (clk)
+    begin
+        if f_state = "1000" then
+            f_registerA <= unsigned(sw(7 downto 0));
+        elsif f_state = "0100" then
+            f_registerB <= unsigned(sw(7 downto 0));
+        end if;
+    end process load_registers;
+    
+    
+    -- 4:1 mux to select what to display
+    w_bin <=    std_logic_vector(f_registerA) when (f_state(1 downto 0) = "00") else
+                std_logic_vector(f_registerB) when (f_state(1 downto 0) = "10") else
+                w_result when (f_state(1 downto 0) = "01") else
+                "00000000";
+    
+    -- leds for debugging, should be disabled for final submission
+    -- led(12 downto 9) <= f_state;
+    -- led(7 downto 0) <= w_bin;
+
+    -- 2:1 mux for the anodes (use this for B and C
+    -- an(3 downto 0) <=   "1111" when (f_state = "1000") else -- blank state encoding is 1000
+    --                     w_sel;
+    
+    -- alternate anode configuration for task A
+    an(3 downto 2) <= "11";
+    an(1 downto 0) <= "11" when (f_state = "1000") else
+                      w_sel(1 downto 0);
+    
+--    update_an : process (f_state)
+--    begin
+--        if (f_state = "1000") then
+--            an(3 downto 0) <=   "1111"; 
+--        else
+--            an(3 downto 2) <= "11";
+--            an(1 downto 0) <= w_sel(1 downto 0);
+--        end if;        
+--    end process update_an;
+                        
+                            
+                        
+                            
+                
+    -- combinational logic to display an unsigned number on w_bin as digits
+--    w_sign <= "0000"; -- unsigned numbers are always positive
+--    separate_digits: process (w_bin)
+--        variable decimal_value: integer;
+--    begin
+--        decimal_value := to_integer(unsigned(w_bin));
+--        w_hundreds <= std_logic_vector(to_unsigned(decimal_value/100, 4));
+--        decimal_value := decimal_value mod 100;
+--        w_tens <= std_logic_vector(to_unsigned(decimal_value/10, 4));
+--        decimal_value := decimal_value mod 10;
+--        w_ones <= std_logic_vector(to_unsigned(decimal_value, 4));
+--    end process separate_digits;
+    
+
+    
 	
 	
 end top_basys3_arch;

@@ -24,7 +24,7 @@
 --| ALU OPCODES:
 --|
 --|     ADD     000
---|
+--|     SUB     001
 --|
 --|
 --|
@@ -32,23 +32,51 @@
 library ieee;
   use ieee.std_logic_1164.all;
   use ieee.numeric_std.all;
+  use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
 
 
 entity ALU is
--- TODO
+    Port(
+        i_A : in  STD_LOGIC_VECTOR (7 downto 0);
+        i_B : in STD_LOGIC_VECTOR (7 downto 0);
+        i_op : in STD_LOGIC_VECTOR (2 downto 0);
+        o_result : out STD_LOGIC_VECTOR (7 downto 0);
+        o_flags : out STD_LOGIC_VECTOR (2 downto 0)
+    );
+    
 end ALU;
 
 architecture behavioral of ALU is 
   
 	-- declare components and signals
-
+    signal w_add_res : STD_LOGIC_VECTOR(7 downto 0); -- output of adder to input of mux
+    signal w_input1 : STD_LOGIC_VECTOR (7 downto 0); -- output of subtraction mux to input of adder
   
 begin
 	-- PORT MAPS ----------------------------------------
 
 	
-	
 	-- CONCURRENT STATEMENTS ----------------------------
+	w_add_res <= std_logic_vector(unsigned(i_A) + unsigned(i_B)) when (i_op = "000") else
+	             std_logic_vector(unsigned(i_A) - unsigned(i_B)) when (i_op = "001");
+	
+	o_result <= w_add_res when (i_op = "000") else
+	            w_add_res when (i_op = "001") else
+	            b"00000000";
+	-- 
+	o_flags(2) <= '0';
+	
+	-- zero flag
+	o_flags(1) <= '1' when (w_add_res = b"00000000") else
+	              '0';
+    
+    -- carry flag             
+	o_flags(0) <= '1' when ((w_add_res < i_A) and (w_add_res < i_B)) else
+	              '0';
+	
+	            
+	
 	
 	
 	
