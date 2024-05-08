@@ -76,7 +76,17 @@ begin
 	w_add_res <= std_logic_vector(unsigned(w_9bit_A) + unsigned(w_9bit_B)) when (i_op = "000") else
 	             std_logic_vector(unsigned(w_9bit_A) - unsigned(w_9bit_B)) when (i_op = "001") else
 	             "000000000";
-	             
+	w_andor_res <= w_9bit_A and w_9bit_B when (i_op = "011") else
+                                w_9bit_A or w_9bit_B when (i_op = "010") else
+                                "000000000";
+                                
+     w_Lshift_res <= std_logic_vector(shift_left(unsigned(w_9bit_A), to_integer(unsigned(w_9bit_B(2 downto 0))))) when (i_op = "110") else
+                     std_logic_vector(shift_left(unsigned(w_9bit_A), to_integer(unsigned(w_9bit_B(2 downto 0))))) when (i_op = "111") else
+                     "000000000";
+                     
+     w_Rshift_res <= std_logic_vector(shift_right(unsigned(w_9bit_A), to_integer(unsigned(w_9bit_B(2 downto 0))))) when (i_op = "100") else
+                     std_logic_vector(shift_right(unsigned(w_9bit_A), to_integer(unsigned(w_9bit_B(2 downto 0))))) when (i_op = "101") else
+                     "000000000";	             
 
       
          
