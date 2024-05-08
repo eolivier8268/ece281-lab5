@@ -50,34 +50,59 @@ end ALU;
 architecture behavioral of ALU is 
   
 	-- declare components and signals
-    signal w_add_res : STD_LOGIC_VECTOR(7 downto 0); -- output of adder to input of mux
+    signal w_add_res : STD_LOGIC_VECTOR(8 downto 0); -- output of adder to input of mux
+    signal w_andor_res : STD_LOGIC_VECTOR(8 downto 0); -- output of and/or gate
+    signal w_Lshift_res : STD_LOGIC_VECTOR(8 downto 0); -- output of left shift
+    signal w_Rshift_res : STD_LOGIC_VECTOR(8 downto 0); -- output of right shift
     signal w_input1 : STD_LOGIC_VECTOR (7 downto 0); -- output of subtraction mux to input of adder
+    signal w_final_res : STD_LOGIC_VECTOR(8 downto 0); -- the output of the mux, after selecting which operation to output
+    
+    signal w_9bit_A : STD_LOGIC_VECTOR(8 downto 0);
+    signal w_9bit_B : STD_LOGIC_VECTOR(8 downto 0);
   
 begin
 	-- PORT MAPS ----------------------------------------
 
 	
 	-- CONCURRENT STATEMENTS ----------------------------
-	w_add_res <= std_logic_vector(unsigned(i_A) + unsigned(i_B)) when (i_op = "000") else
-	             std_logic_vector(unsigned(i_A) - unsigned(i_B)) when (i_op = "001");
+    -- cast the inputs to 9-bit vectors
+    w_9bit_A(8) <= '0';
+    w_9bit_A(7 downto 0) <= i_A;
+    w_9bit_B(8) <= '0';
+    w_9bit_B(7 downto 0) <= i_B;
 	
-	o_result <= w_add_res when (i_op = "000") else
+	
+	-- perform the operations
+	w_add_res <= std_logic_vector(unsigned(w_9bit_A) + unsigned(w_9bit_B)) when (i_op = "000") else
+	             std_logic_vector(unsigned(w_9bit_A) - unsigned(w_9bit_B)) when (i_op = "001") else
+	             "000000000";
+	             
+
+      
+         
+	
+	w_final_res <= w_add_res when (i_op = "000") else
 	            w_add_res when (i_op = "001") else
-	            b"00000000";
-	-- 
-	o_flags(2) <= '0';
+	            w_andor_res when (i_op = "011") else
+	            w_andor_res when (i_op = "010") else
+	            w_Rshift_res when (i_op = "100") else
+	            w_Rshift_res when (i_op = "101") else
+	            w_Lshift_res when (i_op = "110") else
+	            w_Lshift_res when (i_op = "111") else
+	            b"000000000";
+	
+	-- sign bit is the MSB of the result 
+	o_flags(2) <= w_final_res(7);
 	
 	-- zero flag
-	o_flags(1) <= '1' when (w_add_res = b"00000000") else
+	o_flags(1) <= '1' when (w_final_res(7 downto 0) = b"00000000") else
 	              '0';
     
-    -- carry flag             
-	o_flags(0) <= '1' when ((w_add_res < i_A) and (w_add_res < i_B)) else
+    -- carry flag                
+	o_flags(0) <= '1' when (w_final_res(8) = '1') else
 	              '0';
 	
-	            
-	
-	
-	
+	-- output the result signal
+	o_result <= w_final_res(7 downto 0);
 	
 end behavioral;

@@ -47,7 +47,7 @@ architecture top_basys3_arch of top_basys3 is
 	signal w_opnd_B : std_logic_vector(7 downto 0);
 	signal w_result : std_logic_vector(7 downto 0);
 	signal w_bin : std_logic_vector(7 downto 0);
-	signal w_sign : std_logic;
+	signal w_sign : std_logic_vector(3 downto 0);
 	signal w_hundreds : std_logic_vector(3 downto 0);
 	signal w_tens : std_logic_vector(3 downto 0);
 	signal w_ones : std_logic_vector(3 downto 0);
@@ -55,7 +55,7 @@ architecture top_basys3_arch of top_basys3 is
 	signal w_disp_digit : std_logic_vector(3 downto 0);
 	signal w_clk_tdm : std_logic;
     signal w_clk_fsm : std_logic;
-    signal w_clk : std_logic;
+    signal w_flags : std_logic_vector(2 downto 0);
 	
 	signal f_registerA :   unsigned(7 downto 0) := "00000000";
 	signal f_registerB :   unsigned(7 downto 0) := "00000000";
@@ -86,15 +86,15 @@ architecture top_basys3_arch of top_basys3 is
         );
     end component TDM4;
     
---    component twoscomp_decimal is
---        port (
---            i_binary: in std_logic_vector(7 downto 0);
---            o_negative: out std_logic;
---            o_hundreds: out std_logic_vector(3 downto 0);
---            o_tens: out std_logic_vector(3 downto 0);
---            o_ones: out std_logic_vector(3 downto 0)
---        );
---    end component twoscomp_decimal;
+    component twoscomp_decimal is
+        port (
+            i_binary: in std_logic_vector(7 downto 0);
+            o_negative: out std_logic_vector(3 downto 0);
+            o_hundreds: out std_logic_vector(3 downto 0);
+            o_tens: out std_logic_vector(3 downto 0);
+            o_ones: out std_logic_vector(3 downto 0)
+        );
+    end component twoscomp_decimal;
     
     component ALU is 
         Port(
@@ -136,10 +136,14 @@ begin
     port map(
         i_clk => w_clk_tdm,
         i_reset => '0',
-        i_D3 => "0000",
-        i_D2 => "0000",
-        i_D1 => w_bin(7 downto 4),
-        i_D0 => w_bin(3 downto 0),
+        --i_D3 => "0000",
+        i_D3 => w_sign,
+        --i_D2 => "0000",
+        i_D2 => w_hundreds,
+        --i_D1 => w_bin(7 downto 4),
+        i_D1 => w_tens,
+        --i_D0 => w_bin(3 downto 0),
+        i_D0 => w_ones,
         o_data => w_disp_digit,
         o_sel => w_sel
     );	
@@ -151,7 +155,7 @@ begin
         i_op => sw(2 downto 0),
         
         o_result => w_result,
-        o_flags => led(15 downto 13)
+        o_flags => w_flags
     );
     
     SSD_inst : sevenSegDecoder 
@@ -160,14 +164,15 @@ begin
         o_S => seg
     );
     
---    twoscomp_inst : twoscomp_decimal
---    port map (
---        i_binary => w_bin,
---        o_negative => w_sign,
---        o_hundreds => w_hundreds,
---        o_tens => w_tens,
---        o_ones => w_ones
---    );
+    twoscomp_inst : twoscomp_decimal
+    port map (
+        i_binary => w_bin,
+        o_negative => w_sign,
+        o_hundreds => w_hundreds,
+        o_tens => w_tens,
+        o_ones => w_ones
+        
+    );
 	
 	-- CONCURRENT STATEMENTS ----------------------------
     -- update state registers
@@ -205,51 +210,23 @@ begin
     -- 4:1 mux to select what to display
     w_bin <=    std_logic_vector(f_registerA) when (f_state(1 downto 0) = "00") else
                 std_logic_vector(f_registerB) when (f_state(1 downto 0) = "10") else
-                w_result when (f_state(1 downto 0) = "01") else
-                "00000000";
+                w_result when (f_state(1 downto 0) = "01");
     
     -- leds for debugging, should be disabled for final submission
-    -- led(12 downto 9) <= f_state;
+    led(3 downto 0) <= f_state;
     -- led(7 downto 0) <= w_bin;
 
-    -- 2:1 mux for the anodes (use this for B and C
-    -- an(3 downto 0) <=   "1111" when (f_state = "1000") else -- blank state encoding is 1000
-    --                     w_sel;
+--     2:1 mux for the anodes (use this for B and C
+     an(3 downto 0) <=   "1111" when (f_state = "1000") else -- blank state encoding is 1000
+                         w_sel;
+     led(15 downto 13) <= w_flags when (f_state = "0001") else
+                          "000";
+    
+    
     
     -- alternate anode configuration for task A
-    an(3 downto 2) <= "11";
-    an(1 downto 0) <= "11" when (f_state = "1000") else
-                      w_sel(1 downto 0);
-    
---    update_an : process (f_state)
---    begin
---        if (f_state = "1000") then
---            an(3 downto 0) <=   "1111"; 
---        else
---            an(3 downto 2) <= "11";
---            an(1 downto 0) <= w_sel(1 downto 0);
---        end if;        
---    end process update_an;
+--    an(3 downto 2) <= "11";
+--    an(1 downto 0) <= "11" when (f_state = "1000") else
+--                      w_sel(1 downto 0);
                         
-                            
-                        
-                            
-                
-    -- combinational logic to display an unsigned number on w_bin as digits
---    w_sign <= "0000"; -- unsigned numbers are always positive
---    separate_digits: process (w_bin)
---        variable decimal_value: integer;
---    begin
---        decimal_value := to_integer(unsigned(w_bin));
---        w_hundreds <= std_logic_vector(to_unsigned(decimal_value/100, 4));
---        decimal_value := decimal_value mod 100;
---        w_tens <= std_logic_vector(to_unsigned(decimal_value/10, 4));
---        decimal_value := decimal_value mod 10;
---        w_ones <= std_logic_vector(to_unsigned(decimal_value, 4));
---    end process separate_digits;
-    
-
-    
-	
-	
 end top_basys3_arch;
