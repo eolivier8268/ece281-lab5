@@ -47,6 +47,7 @@ architecture top_basys3_arch of top_basys3 is
 	signal w_opnd_B : std_logic_vector(7 downto 0);
 	signal w_result : std_logic_vector(7 downto 0);
 	signal w_bin : std_logic_vector(7 downto 0);
+	signal w_signbit : std_logic;
 	signal w_sign : std_logic_vector(3 downto 0);
 	signal w_hundreds : std_logic_vector(3 downto 0);
 	signal w_tens : std_logic_vector(3 downto 0);
@@ -89,7 +90,7 @@ architecture top_basys3_arch of top_basys3 is
     component twoscomp_decimal is
         port (
             i_binary: in std_logic_vector(7 downto 0);
-            o_negative: out std_logic_vector(3 downto 0);
+            o_negative: out std_logic;
             o_hundreds: out std_logic_vector(3 downto 0);
             o_tens: out std_logic_vector(3 downto 0);
             o_ones: out std_logic_vector(3 downto 0)
@@ -167,7 +168,7 @@ begin
     twoscomp_inst : twoscomp_decimal
     port map (
         i_binary => w_bin,
-        o_negative => w_sign,
+        o_negative => w_signbit,
         o_hundreds => w_hundreds,
         o_tens => w_tens,
         o_ones => w_ones
@@ -180,6 +181,9 @@ begin
     f_state_next(2) <= f_state(3);
     f_state_next(1) <= f_state(2);
     f_state_next(0) <= f_state(1);
+    
+    w_sign <= x"a" when (w_signbit = '1') else
+              x"b";                    
     
     -- update the FSM when a button is toggled
     fsm : process (w_clk_fsm)
@@ -213,7 +217,6 @@ begin
                 w_result when (f_state(1 downto 0) = "01");
     
     -- leds for debugging, should be disabled for final submission
-    led(3 downto 0) <= f_state;
     -- led(7 downto 0) <= w_bin;
 
 --     2:1 mux for the anodes (use this for B and C
@@ -221,12 +224,6 @@ begin
                          w_sel;
      led(15 downto 13) <= w_flags when (f_state = "0001") else
                           "000";
-    
-    
-    
-    -- alternate anode configuration for task A
---    an(3 downto 2) <= "11";
---    an(1 downto 0) <= "11" when (f_state = "1000") else
---                      w_sel(1 downto 0);
+     led(3 downto 0) <= f_state;
                         
 end top_basys3_arch;

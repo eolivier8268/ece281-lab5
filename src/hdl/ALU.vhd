@@ -25,8 +25,10 @@
 --|
 --|     ADD     000
 --|     SUB     001
---|
---|
+--|     AND     011
+--|     OR      010
+--|     LSHIFT  11X
+--|     RSHIFT  10X
 --|
 --+----------------------------------------------------------------------------
 library ieee;
@@ -54,7 +56,6 @@ architecture behavioral of ALU is
     signal w_andor_res : STD_LOGIC_VECTOR(8 downto 0); -- output of and/or gate
     signal w_Lshift_res : STD_LOGIC_VECTOR(8 downto 0); -- output of left shift
     signal w_Rshift_res : STD_LOGIC_VECTOR(8 downto 0); -- output of right shift
-    signal w_input1 : STD_LOGIC_VECTOR (7 downto 0); -- output of subtraction mux to input of adder
     signal w_final_res : STD_LOGIC_VECTOR(8 downto 0); -- the output of the mux, after selecting which operation to output
     
     signal w_9bit_A : STD_LOGIC_VECTOR(8 downto 0);
